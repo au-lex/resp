@@ -40,7 +40,11 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: 'aulex500@gmail.com',
     pass: 'xwrd zhyq seyg bcod'
-  }
+  },
+
+    port: 587,
+  host: "smtp.gmail.com",
+  secure: true,
 });
 // Function to generate a unique referral code
 function generateReferralCode() {
