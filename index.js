@@ -54,8 +54,11 @@ function generateReferralCode() {
 app.get('/', (req, res) => {
   res.send('Hello World!');
 });
+
+
 app.post('/signup', async (req, res) => {
   const { firstName, lastName, email, password, referralCode } = req.body;
+
   // Check if the referralCode is valid
   let referredByUser = null;
   if (referralCode) {
@@ -64,15 +67,18 @@ app.post('/signup', async (req, res) => {
       return res.status(400).send({ message: 'Invalid referral code' });
     }
   }
+
   // Generate a unique referral code for the new user
   const newReferralCode = generateReferralCode();
   // Generate referral link
   const referralLink = `https://your-website.com/signup?ref=${newReferralCode}`;
-  // Save the new user with referral link
+
+  // Hash the password
   const hashedPassword = await bcrypt.hash(password, 10);
+  // Generate OTP
   const otp = Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit OTP
 
-  // const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  // Create a new user object
   const newUser = new User({
     firstName,
     lastName,
@@ -83,8 +89,10 @@ app.post('/signup', async (req, res) => {
     referralLink,
     referredBy: referredByUser ? referredByUser._id : null
   });
+
   try {
     await newUser.save();
+
     // Send OTP to user's email using Nodemailer
     const mailOptions = {
       from: 'aulex500@gmail.com',
@@ -92,25 +100,40 @@ app.post('/signup', async (req, res) => {
       subject: 'OTP for Registration',
       text: `Your OTP for registration is: ${otp}`
     };
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        return console.error(error.message);
-      }
-      console.log('Email sent: ' + info.response);
+
+    // Wrapping the email sending functionality in a promise
+    const sendMailPromise = new Promise((resolve, reject) => {
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(info);
+        }
+      });
     });
+
+    // Wait for the email sending promise to resolve or reject
+    await sendMailPromise;
+
     // Update the referredBy field of the newly signed up user
     if (referredByUser) {
       referredByUser.referralCount += 1;
       referredByUser.balance += 400;
       await referredByUser.save();
     }
+
+    // Generate JWT token
     const token = jwt.sign({ email: newUser.email }, JWT_SECRET, { expiresIn: '1h' });
+    
+    // Send response
     res.send({ message: 'OTP sent successfully!', token });
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: 'Internal Server Error' });
   }
 });
+
+
 app.post('/verify', async (req, res) => {
   const { email, otp } = req.body;
   try {
